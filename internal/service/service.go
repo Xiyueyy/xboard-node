@@ -1087,6 +1087,12 @@ func (s *Service) buildMetrics(status monitor.Status) map[string]interface{} {
 		"speed_limited_users": s.speedTracker.LimitedUserCount(),
 	}
 
+	if reporter, ok := s.kernel.(kernel.AccessReporter); ok {
+		if events := reporter.FlushAccessTargetEvents(1000); len(events) > 0 {
+			m["access_targets"] = events
+		}
+	}
+
 	return m
 }
 

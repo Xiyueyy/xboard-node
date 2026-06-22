@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,6 +16,7 @@ import (
 	N "github.com/sagernet/sing/common/network"
 	"golang.org/x/time/rate"
 
+	"github.com/cedar2025/xboard-node/internal/kernel"
 	"github.com/cedar2025/xboard-node/internal/nlog"
 )
 
@@ -139,6 +141,9 @@ type ConnTracker struct {
 	globalDevices    map[int]map[string]bool // userID → IP → exists
 	globalMu         sync.RWMutex
 	globalLastUpdate time.Time
+
+	accessMu sync.Mutex
+	access   map[accessKey]*accessStat
 }
 
 // NewConnTracker creates a tracker.
@@ -148,6 +153,7 @@ func NewConnTracker(_ int) *ConnTracker {
 		uuidMap:       make(map[string]int),
 		connMap:       make(map[string]net.Conn),
 		globalDevices: make(map[int]map[string]bool),
+		access:        make(map[accessKey]*accessStat),
 	}
 }
 
@@ -207,7 +213,7 @@ func (t *ConnTracker) ClearGlobalDevices() {
 func (t *ConnTracker) RoutedConnection(
 	ctx context.Context, conn net.Conn,
 	metadata adapter.InboundContext,
-	_ adapter.Rule, _ adapter.Outbound,
+	_ adapter.Rule, matchOutbound adapter.Outbound,
 ) net.Conn {
 	uuid := metadata.User
 	sourceIP := metadata.Source.Addr.String()
@@ -233,6 +239,7 @@ func (t *ConnTracker) RoutedConnection(
 	if us != nil {
 		us.addConn(sourceIP)
 	}
+	t.recordAccess(metadata, uid, matchOutbound)
 
 	connID := t.nextID()
 
@@ -265,7 +272,7 @@ func (t *ConnTracker) RoutedConnection(
 func (t *ConnTracker) RoutedPacketConnection(
 	ctx context.Context, conn N.PacketConn,
 	metadata adapter.InboundContext,
-	_ adapter.Rule, _ adapter.Outbound,
+	_ adapter.Rule, matchOutbound adapter.Outbound,
 ) N.PacketConn {
 	uuid := metadata.User
 	sourceIP := metadata.Source.Addr.String()
@@ -290,6 +297,7 @@ func (t *ConnTracker) RoutedPacketConnection(
 	if us != nil {
 		us.addConn(sourceIP)
 	}
+	t.recordAccess(metadata, uid, matchOutbound)
 
 	connID := t.nextID()
 
@@ -391,6 +399,109 @@ func (t *ConnTracker) checkDeviceGate(us *userStats, userID int, sourceIP string
 	nlog.Core().Debug("device limit: total over limit, rejecting",
 		"userID", userID, "ip", sourceIP, "totalIPs", len(allIPs), "limit", limit)
 	return true
+}
+
+// ─── Access target aggregation ──────────────────────────────────────────────
+
+type accessKey struct {
+	userID      int
+	sourceIP    string
+	inboundTag  string
+	network     string
+	targetHost  string
+	targetPort  int
+	outboundTag string
+}
+
+type accessStat struct {
+	count int
+	first time.Time
+	last  time.Time
+}
+
+func (t *ConnTracker) recordAccess(metadata adapter.InboundContext, userID int, outbound adapter.Outbound) {
+	if userID == 0 {
+		return
+	}
+	host, port := targetHostPort(metadata)
+	if host == "" {
+		return
+	}
+	key := accessKey{
+		userID:      userID,
+		sourceIP:    metadata.Source.AddrString(),
+		inboundTag:  metadata.Inbound,
+		network:     metadata.Network,
+		targetHost:  host,
+		targetPort:  port,
+		outboundTag: outboundTag(outbound),
+	}
+	now := time.Now()
+	t.accessMu.Lock()
+	stat := t.access[key]
+	if stat == nil {
+		stat = &accessStat{first: now}
+		t.access[key] = stat
+	}
+	stat.count++
+	stat.last = now
+	t.accessMu.Unlock()
+}
+
+func targetHostPort(metadata adapter.InboundContext) (string, int) {
+	dest := metadata.Destination
+	host := strings.TrimSpace(metadata.Domain)
+	if host == "" {
+		host = strings.TrimSpace(dest.Fqdn)
+	}
+	if host == "" && dest.Addr.IsValid() {
+		host = dest.Addr.String()
+	}
+	if host == "" {
+		host = strings.TrimSpace(dest.AddrString())
+	}
+	host = strings.Trim(host, "[]")
+	return host, int(dest.Port)
+}
+
+func outboundTag(outbound adapter.Outbound) string {
+	if outbound == nil {
+		return ""
+	}
+	return outbound.Tag()
+}
+
+func (t *ConnTracker) FlushAccessTargetEvents(limit int) []kernel.AccessTargetEvent {
+	t.accessMu.Lock()
+	if len(t.access) == 0 {
+		t.accessMu.Unlock()
+		return nil
+	}
+	events := make([]kernel.AccessTargetEvent, 0, len(t.access))
+	for key, stat := range t.access {
+		events = append(events, kernel.AccessTargetEvent{
+			UserID:          key.userID,
+			SourceIP:        key.sourceIP,
+			InboundTag:      key.inboundTag,
+			Network:         key.network,
+			TargetHost:      key.targetHost,
+			TargetPort:      key.targetPort,
+			OutboundTag:     key.outboundTag,
+			ConnectionCount: stat.count,
+			FirstSeenAt:     stat.first,
+			LastSeenAt:      stat.last,
+		})
+	}
+	t.access = make(map[accessKey]*accessStat)
+	t.accessMu.Unlock()
+
+	sort.Slice(events, func(i, j int) bool {
+		return events[i].LastSeenAt.After(events[j].LastSeenAt)
+	})
+	if limit > 0 && len(events) > limit {
+		events = events[:limit]
+	}
+	return events
 }
 
 func (t *ConnTracker) nextID() string {

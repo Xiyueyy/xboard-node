@@ -623,6 +623,15 @@ func (s *SingBox) GetUserTraffic(_ context.Context) (traffic map[int][2]int64, a
 	return traffic, aliveIPs, connCount, nil
 }
 
+// FlushAccessTargetEvents returns and clears recent per-user destination access records.
+func (s *SingBox) FlushAccessTargetEvents(limit int) []kernel.AccessTargetEvent {
+	ct := s.connTrackerSafe()
+	if ct == nil {
+		return nil
+	}
+	return ct.FlushAccessTargetEvents(limit)
+}
+
 // CloseConnection force-closes a specific connection by its ID.
 func (s *SingBox) CloseConnection(_ context.Context, connID string) error {
 	ct := s.connTrackerSafe()
