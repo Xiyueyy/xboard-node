@@ -981,6 +981,7 @@ func (s *Service) pushReportAsync() {
 	status := monitor.Collect()
 	metrics := s.buildMetrics(status)
 	metrics["kernel_status"] = s.kernel.IsRunning()
+	s.attachAccessTargetMetrics(metrics)
 
 	go func() {
 		defer s.pushActive.Store(false)
@@ -1011,6 +1012,7 @@ func (s *Service) pushReportSync() {
 	status := monitor.Collect()
 	metrics := s.buildMetrics(status)
 	metrics["kernel_status"] = s.kernel.IsRunning()
+	s.attachAccessTargetMetrics(metrics)
 
 	if err := s.sink.Report(controlplane.ReportPayload{Traffic: traffic, Alive: aliveIPs, Online: online, CPU: status.CPU, Mem: [2]uint64{status.MemTotal, status.MemUsed}, Swap: [2]uint64{status.SwapTotal, status.SwapUsed}, Disk: [2]uint64{status.DiskTotal, status.DiskUsed}, Metrics: metrics}); err != nil {
 		nlog.Core().Warn("failed to push final report", "error", err)
@@ -1087,13 +1089,16 @@ func (s *Service) buildMetrics(status monitor.Status) map[string]interface{} {
 		"speed_limited_users": s.speedTracker.LimitedUserCount(),
 	}
 
+	return m
+}
+
+func (s *Service) attachAccessTargetMetrics(metrics map[string]interface{}) {
 	if reporter, ok := s.kernel.(kernel.AccessReporter); ok {
 		if events := reporter.FlushAccessTargetEvents(1000); len(events) > 0 {
-			m["access_targets"] = events
+			metrics["access_targets"] = events
+			metrics["access_targets_count"] = len(events)
 		}
 	}
-
-	return m
 }
 
 // computeConfigHash returns a deterministic hash of the node config.
