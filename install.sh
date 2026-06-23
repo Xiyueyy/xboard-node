@@ -85,7 +85,7 @@ load_health_port_from_config() {
     # Instance-mode configs may not have a top-level health_port. Preserve the
     # previously installed health_port from install-meta.json during upgrades.
     if [ -z "$parsed" ] && [ -f "$INSTALL_META" ]; then
-        parsed=$(sed -n 's/.*"health_port"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*//p' "$INSTALL_META" | head -1)
+        parsed=$(sed -n 's/.*"health_port"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$INSTALL_META" | head -1)
     fi
     if [ -n "$parsed" ] && [ "$parsed" -ge 0 ] 2>/dev/null; then
         HEALTH_PORT="$parsed"
