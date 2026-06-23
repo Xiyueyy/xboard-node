@@ -73,14 +73,19 @@ cleanup_tmp() {
 
 load_health_port_from_config() {
     local cfg_path="$1"
-    if [ ! -f "$cfg_path" ]; then
-        return
+    local parsed=""
+    if [ -f "$cfg_path" ]; then
+        if [ -x "$CLI_PATH" ]; then
+            parsed=$("$CLI_PATH" config health-port --config "$cfg_path" 2>/dev/null || true)
+        fi
+        if [ -z "$parsed" ]; then
+            parsed=$(grep -m1 'health_port:' "$cfg_path" 2>/dev/null | sed 's/.*health_port:[[:space:]]*//' | tr -cd '0-9')
+        fi
     fi
-    local parsed
-    if [ -x "$CLI_PATH" ]; then
-        parsed=$("$CLI_PATH" config health-port --config "$cfg_path" 2>/dev/null)
-    else
-        parsed=$(grep -m1 'health_port:' "$cfg_path" 2>/dev/null | sed 's/.*health_port:[[:space:]]*//' | tr -cd '0-9')
+    # Instance-mode configs may not have a top-level health_port. Preserve the
+    # previously installed health_port from install-meta.json during upgrades.
+    if [ -z "$parsed" ] && [ -f "$INSTALL_META" ]; then
+        parsed=$(sed -n 's/.*"health_port"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*//p' "$INSTALL_META" | head -1)
     fi
     if [ -n "$parsed" ] && [ "$parsed" -ge 0 ] 2>/dev/null; then
         HEALTH_PORT="$parsed"
@@ -728,6 +733,7 @@ perform_install() {
 
 perform_upgrade() {
     detect_current_state
+    load_health_port_from_config "$CONFIG_FILE"
     if [ "$CURRENT_STATE" = "fresh" ]; then
         log_warn "No existing install found; falling back to install"
         perform_install
