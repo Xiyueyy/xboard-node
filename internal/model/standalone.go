@@ -28,6 +28,7 @@ func NodeSpecFromStandalone(cfg *config.Config) *NodeSpec {
 				DomainSuffixes: cloneStringSlice(rule.Match.DomainSuffixes),
 				IPCIDRs:        cloneStringSlice(rule.Match.IPCIDRs),
 				Ports:          cloneStringSlice(rule.Match.Ports),
+				Protocols:      cloneStringSlice(rule.Match.Protocols),
 				Networks:       cloneStringSlice(rule.Match.Networks),
 				SourceCIDRs:    cloneStringSlice(rule.Match.SourceCIDRs),
 				SourcePorts:    cloneStringSlice(rule.Match.SourcePorts),

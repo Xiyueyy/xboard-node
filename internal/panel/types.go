@@ -71,8 +71,8 @@ type MachineNode struct {
 
 // MachineNodesResponse is the response from GET /api/v2/server/machine/nodes.
 type MachineNodesResponse struct {
-	Nodes      []MachineNode      `json:"nodes"`
-	BaseConfig MachineBaseConfig  `json:"base_config"`
+	Nodes      []MachineNode     `json:"nodes"`
+	BaseConfig MachineBaseConfig `json:"base_config"`
 }
 
 // MachineBaseConfig holds polling intervals for machine mode.
@@ -241,6 +241,7 @@ type RouteMatch struct {
 	DomainSuffixes []string `json:"domain_suffixes,omitempty"`
 	IPCIDRs        []string `json:"ip_cidrs,omitempty"`
 	Ports          []string `json:"ports,omitempty"`
+	Protocols      []string `json:"protocols,omitempty"`
 	Networks       []string `json:"networks,omitempty"`
 	SourceCIDRs    []string `json:"source_cidrs,omitempty"`
 	SourcePorts    []string `json:"source_ports,omitempty"`

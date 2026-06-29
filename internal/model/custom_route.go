@@ -12,6 +12,7 @@ type RouteMatch struct {
 	DomainSuffixes []string
 	IPCIDRs        []string
 	Ports          []string
+	Protocols      []string
 	Networks       []string
 	SourceCIDRs    []string
 	SourcePorts    []string
@@ -44,6 +45,7 @@ func cloneRouteMatch(src RouteMatch) RouteMatch {
 		DomainSuffixes: cloneStringSlice(src.DomainSuffixes),
 		IPCIDRs:        cloneStringSlice(src.IPCIDRs),
 		Ports:          cloneStringSlice(src.Ports),
+		Protocols:      cloneStringSlice(src.Protocols),
 		Networks:       cloneStringSlice(src.Networks),
 		SourceCIDRs:    cloneStringSlice(src.SourceCIDRs),
 		SourcePorts:    cloneStringSlice(src.SourcePorts),

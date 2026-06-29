@@ -70,6 +70,7 @@ type StandaloneRouteMatch struct {
 	DomainSuffixes []string `yaml:"domain_suffixes,omitempty"`
 	IPCIDRs        []string `yaml:"ip_cidrs,omitempty"`
 	Ports          []string `yaml:"ports,omitempty"`
+	Protocols      []string `yaml:"protocols,omitempty"`
 	Networks       []string `yaml:"networks,omitempty"`
 	SourceCIDRs    []string `yaml:"source_cidrs,omitempty"`
 	SourcePorts    []string `yaml:"source_ports,omitempty"`

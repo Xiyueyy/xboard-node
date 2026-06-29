@@ -755,6 +755,13 @@ func compileCustomRouteRule(rule model.CustomRouteRule) []M {
 			"outboundTag": outbound,
 		})
 	}
+	if len(rule.Match.Protocols) > 0 {
+		compiled = append(compiled, M{
+			"type":        "field",
+			"protocol":    copyStrings(rule.Match.Protocols),
+			"outboundTag": outbound,
+		})
+	}
 	if len(rule.Match.Ports) > 0 {
 		compiled = append(compiled, M{
 			"type":        "field",

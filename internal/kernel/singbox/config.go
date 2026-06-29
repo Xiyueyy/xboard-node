@@ -272,6 +272,12 @@ func compileCustomRouteRule(rule model.CustomRouteRule) []M {
 			"outbound": outbound,
 		})
 	}
+	if len(rule.Match.Protocols) > 0 {
+		compiled = append(compiled, M{
+			"protocol": copyStrings(rule.Match.Protocols),
+			"outbound": outbound,
+		})
+	}
 	if len(rule.Match.Ports) > 0 {
 		ports, portRanges := splitPorts(rule.Match.Ports)
 		entry := M{"outbound": outbound}
