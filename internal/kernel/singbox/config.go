@@ -189,29 +189,19 @@ func buildRoutes(panelRoutes []model.RouteRule, customRules []model.CustomRouteR
 		rules = append(rules, compilePanelRouteRule(pr)...)
 	}
 
-	return M{
+	route := M{
 		"final": "direct",
 		"rules": rules,
 	}
+	if ruleSets := buildSingboxRouteRuleSets(rules); len(ruleSets) > 0 {
+		route["rule_set"] = ruleSets
+	}
+	return route
 }
 
 func compilePanelRouteRule(pr model.RouteRule) []M {
 	if len(pr.Match) == 0 {
 		return nil
-	}
-
-	var domains, cidrs []string
-	for _, item := range pr.Match {
-		item = strings.TrimSpace(item)
-		if item == "" {
-			continue
-		}
-		item = strings.TrimPrefix(item, "*.")
-		if strings.Contains(item, "/") {
-			cidrs = append(cidrs, item)
-			continue
-		}
-		domains = append(domains, item)
 	}
 
 	outbound := "block"
@@ -231,6 +221,34 @@ func compilePanelRouteRule(pr model.RouteRule) []M {
 	}
 
 	var compiled []M
+	var domains, cidrs, ruleSets []string
+	for _, item := range pr.Match {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		item = strings.TrimPrefix(item, "*.")
+		if tag, ok := singboxGeoIPRuleSetTag(item); ok {
+			ruleSets = append(ruleSets, tag)
+			continue
+		}
+		if tag, ok := singboxGeositeRuleSetTag(item); ok {
+			ruleSets = append(ruleSets, tag)
+			continue
+		}
+		if strings.Contains(item, "/") {
+			cidrs = append(cidrs, item)
+			continue
+		}
+		domains = append(domains, item)
+	}
+
+	if len(ruleSets) > 0 {
+		compiled = append(compiled, M{
+			"rule_set": uniqueStrings(ruleSets),
+			"outbound": outbound,
+		})
+	}
 	if len(domains) > 0 {
 		compiled = append(compiled, M{
 			"domain_suffix": copyStrings(domains),
@@ -255,22 +273,55 @@ func compileCustomRouteRule(rule model.CustomRouteRule) []M {
 	var compiled []M
 
 	if len(rule.Match.Domains) > 0 {
-		compiled = append(compiled, M{
-			"domain":   copyStrings(rule.Match.Domains),
-			"outbound": outbound,
-		})
+		domains, ruleSets := splitSingboxGeositeValues(rule.Match.Domains)
+		if len(ruleSets) > 0 {
+			compiled = append(compiled, M{
+				"rule_set": uniqueStrings(ruleSets),
+				"outbound": outbound,
+			})
+		}
+		if len(domains) > 0 {
+			compiled = append(compiled, M{
+				"domain":   domains,
+				"outbound": outbound,
+			})
+		}
 	}
 	if len(rule.Match.DomainSuffixes) > 0 {
-		compiled = append(compiled, M{
-			"domain_suffix": copyStrings(rule.Match.DomainSuffixes),
-			"outbound":      outbound,
-		})
+		domainSuffixes, ruleSets := splitSingboxGeositeValues(rule.Match.DomainSuffixes)
+		if len(ruleSets) > 0 {
+			compiled = append(compiled, M{
+				"rule_set": uniqueStrings(ruleSets),
+				"outbound": outbound,
+			})
+		}
+		if len(domainSuffixes) > 0 {
+			compiled = append(compiled, M{
+				"domain_suffix": domainSuffixes,
+				"outbound":      outbound,
+			})
+		}
 	}
 	if len(rule.Match.IPCIDRs) > 0 {
-		compiled = append(compiled, M{
-			"ip_cidr":  copyStrings(rule.Match.IPCIDRs),
-			"outbound": outbound,
-		})
+		cidrs, ruleSets, ipIsPrivate := splitSingboxGeoIPValues(rule.Match.IPCIDRs)
+		if ipIsPrivate {
+			compiled = append(compiled, M{
+				"ip_is_private": true,
+				"outbound":      outbound,
+			})
+		}
+		if len(ruleSets) > 0 {
+			compiled = append(compiled, M{
+				"rule_set": uniqueStrings(ruleSets),
+				"outbound": outbound,
+			})
+		}
+		if len(cidrs) > 0 {
+			compiled = append(compiled, M{
+				"ip_cidr":  cidrs,
+				"outbound": outbound,
+			})
+		}
 	}
 	if len(rule.Match.Protocols) > 0 {
 		compiled = append(compiled, M{
@@ -296,10 +347,26 @@ func compileCustomRouteRule(rule model.CustomRouteRule) []M {
 		})
 	}
 	if len(rule.Match.SourceCIDRs) > 0 {
-		compiled = append(compiled, M{
-			"source_ip_cidr": copyStrings(rule.Match.SourceCIDRs),
-			"outbound":       outbound,
-		})
+		cidrs, ruleSets, sourceIPIsPrivate := splitSingboxGeoIPValues(rule.Match.SourceCIDRs)
+		if sourceIPIsPrivate {
+			compiled = append(compiled, M{
+				"source_ip_is_private": true,
+				"outbound":             outbound,
+			})
+		}
+		if len(ruleSets) > 0 {
+			compiled = append(compiled, M{
+				"rule_set":                      uniqueStrings(ruleSets),
+				"rule_set_ip_cidr_match_source": true,
+				"outbound":                      outbound,
+			})
+		}
+		if len(cidrs) > 0 {
+			compiled = append(compiled, M{
+				"source_ip_cidr": cidrs,
+				"outbound":       outbound,
+			})
+		}
 	}
 	if len(rule.Match.SourcePorts) > 0 {
 		ports, portRanges := splitPorts(rule.Match.SourcePorts)
@@ -313,6 +380,152 @@ func compileCustomRouteRule(rule model.CustomRouteRule) []M {
 		compiled = append(compiled, entry)
 	}
 	return compiled
+}
+
+func singboxGeoIPRuleSetTag(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(strings.ToLower(value), "geoip:") {
+		return "", false
+	}
+	code := strings.TrimSpace(value[len("geoip:"):])
+	if code == "" || strings.EqualFold(code, "private") {
+		return "", false
+	}
+	return "geoip-" + strings.ToLower(code), true
+}
+
+func singboxGeositeRuleSetTag(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(strings.ToLower(value), "geosite:") {
+		return "", false
+	}
+	name := strings.TrimSpace(value[len("geosite:"):])
+	if name == "" {
+		return "", false
+	}
+	return "geosite-" + strings.ToLower(name), true
+}
+
+func splitSingboxGeoIPValues(values []string) (cidrs []string, ruleSets []string, ipIsPrivate bool) {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if strings.EqualFold(value, "geoip:private") {
+			ipIsPrivate = true
+			continue
+		}
+		if tag, ok := singboxGeoIPRuleSetTag(value); ok {
+			ruleSets = append(ruleSets, tag)
+			continue
+		}
+		cidrs = append(cidrs, value)
+	}
+	return copyStrings(cidrs), uniqueStrings(ruleSets), ipIsPrivate
+}
+
+func splitSingboxGeositeValues(values []string) (domains []string, ruleSets []string) {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if tag, ok := singboxGeositeRuleSetTag(value); ok {
+			ruleSets = append(ruleSets, tag)
+			continue
+		}
+		domains = append(domains, value)
+	}
+	return copyStrings(domains), uniqueStrings(ruleSets)
+}
+
+func buildSingboxRouteRuleSets(rules []M) []M {
+	seen := map[string]bool{}
+	var ruleSets []M
+	var walk func(value any)
+	walk = func(value any) {
+		switch typed := value.(type) {
+		case M:
+			if raw, ok := typed["rule_set"]; ok {
+				for _, tag := range stringList(raw) {
+					if !seen[tag] {
+						if ruleSet := singboxRemoteRuleSet(tag); ruleSet != nil {
+							seen[tag] = true
+							ruleSets = append(ruleSets, ruleSet)
+						}
+					}
+				}
+			}
+			if nested, ok := typed["rules"]; ok {
+				walk(nested)
+			}
+		case []M:
+			for _, item := range typed {
+				walk(item)
+			}
+		case []any:
+			for _, item := range typed {
+				walk(item)
+			}
+		}
+	}
+	walk(rules)
+	return ruleSets
+}
+
+func singboxRemoteRuleSet(tag string) M {
+	var url string
+	switch {
+	case strings.HasPrefix(tag, "geoip-"):
+		url = "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/" + tag + ".srs"
+	case strings.HasPrefix(tag, "geosite-"):
+		url = "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/" + tag + ".srs"
+	default:
+		return nil
+	}
+	return M{
+		"type":   "remote",
+		"tag":    tag,
+		"format": "binary",
+		"url":    url,
+	}
+}
+
+func stringList(value any) []string {
+	switch typed := value.(type) {
+	case string:
+		if strings.TrimSpace(typed) == "" {
+			return nil
+		}
+		return []string{strings.TrimSpace(typed)}
+	case []string:
+		return copyStrings(typed)
+	case []any:
+		var out []string
+		for _, item := range typed {
+			if text, ok := item.(string); ok && strings.TrimSpace(text) != "" {
+				out = append(out, strings.TrimSpace(text))
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func uniqueStrings(values []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
 }
 
 func singboxOutboundForAction(action model.RouteAction) string {
