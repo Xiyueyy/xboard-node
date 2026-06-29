@@ -790,6 +790,11 @@ func compileCustomRouteRule(rule model.CustomRouteRule) []M {
 			"outboundTag": outbound,
 		})
 	}
+	if rule.Name != "" {
+		for _, item := range compiled {
+			item["marktag"] = rule.Name
+		}
+	}
 	return compiled
 }
 
