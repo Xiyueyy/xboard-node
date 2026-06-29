@@ -743,6 +743,102 @@ func TestBuildRoutes_StructuredCustomRulesRemainFirst(t *testing.T) {
 	}
 }
 
+func TestBuildRoutes_CustomGeoRulesUseSingboxRuleSets(t *testing.T) {
+	customRules := []model.CustomRouteRule{
+		{
+			Name: "block-cn-and-trackers",
+			Match: model.RouteMatch{
+				Domains: []string{
+					"geosite:category-public-tracker",
+				},
+				IPCIDRs: []string{
+					"geoip:private",
+					"geoip:cn",
+				},
+			},
+			Action: model.RouteAction{Type: "block"},
+		},
+	}
+
+	route := buildRoutes(nil, customRules, nil)
+	allRules := route["rules"].([]M)
+
+	if got := allRules[0]["rule_set"]; !stringSliceEqual(got, []string{"geosite-category-public-tracker"}) {
+		t.Fatalf("geosite rule_set: got %#v", got)
+	}
+	if allRules[0]["outbound"] != "block" {
+		t.Fatalf("geosite outbound: got %#v", allRules[0]["outbound"])
+	}
+	if got := allRules[1]["ip_is_private"]; got != true {
+		t.Fatalf("private geoip should become ip_is_private=true, got %#v", allRules[1])
+	}
+	if got := allRules[2]["rule_set"]; !stringSliceEqual(got, []string{"geoip-cn"}) {
+		t.Fatalf("geoip rule_set: got %#v", got)
+	}
+	if allRules[2]["ip_cidr"] != nil {
+		t.Fatalf("geoip:cn must not be emitted as ip_cidr: %#v", allRules[2])
+	}
+
+	ruleSets := route["rule_set"].([]M)
+	if !containsRuleSet(ruleSets, "geosite-category-public-tracker") {
+		t.Fatalf("missing geosite rule_set definition: %#v", ruleSets)
+	}
+	if !containsRuleSet(ruleSets, "geoip-cn") {
+		t.Fatalf("missing geoip rule_set definition: %#v", ruleSets)
+	}
+}
+
+func TestBuildRoutes_PanelGeoRulesUseSingboxRuleSets(t *testing.T) {
+	route := buildRoutes([]model.RouteRule{{
+		Match:  []string{"geoip:cn", "geosite:google"},
+		Action: "direct",
+	}}, nil, nil)
+	var geoRule M
+	for _, rule := range route["rules"].([]M) {
+		if rule["rule_set"] != nil {
+			geoRule = rule
+			break
+		}
+	}
+	if geoRule == nil {
+		t.Fatalf("missing panel geo rule in route: %#v", route["rules"])
+	}
+	if got := geoRule["rule_set"]; !stringSliceEqual(got, []string{"geoip-cn", "geosite-google"}) {
+		t.Fatalf("panel geo rule_set: got %#v", got)
+	}
+	if geoRule["outbound"] != "direct" {
+		t.Fatalf("panel geo outbound: got %#v", geoRule["outbound"])
+	}
+	if geoRule["ip_cidr"] != nil || geoRule["domain_suffix"] != nil {
+		t.Fatalf("geo values should not be emitted as ip_cidr/domain_suffix: %#v", geoRule)
+	}
+	if !containsRuleSet(route["rule_set"].([]M), "geoip-cn") || !containsRuleSet(route["rule_set"].([]M), "geosite-google") {
+		t.Fatalf("missing panel geo rule_set definitions: %#v", route["rule_set"])
+	}
+}
+
+func stringSliceEqual(value any, want []string) bool {
+	got, ok := value.([]string)
+	if !ok || len(got) != len(want) {
+		return false
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func containsRuleSet(ruleSets []M, tag string) bool {
+	for _, ruleSet := range ruleSets {
+		if ruleSet["tag"] == tag && ruleSet["type"] == "remote" && ruleSet["format"] == "binary" {
+			return true
+		}
+	}
+	return false
+}
+
 // --- TLS Config ---
 
 func TestBuildTLSConfig_WithCert(t *testing.T) {
