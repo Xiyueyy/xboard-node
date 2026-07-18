@@ -145,7 +145,11 @@ func mergeRouteList(a, b []map[string]any) []map[string]any {
 }
 
 func buildRoutes(panelRoutes []model.RouteRule, customRules []model.CustomRouteRule, custom []map[string]any) M {
-	var rules []M
+	// Since sing-box 1.11, protocol/domain sniffing is a route action rather
+	// than an inbound option. It must run before domain-based rules so traffic
+	// received with an IP destination (for example from TUN/local-DNS clients)
+	// can still be routed by the TLS SNI, HTTP Host, or QUIC server name.
+	rules := []M{{"action": "sniff"}}
 
 	// Structured custom routes now take the highest priority for panel-managed overrides.
 	for _, rule := range customRules {

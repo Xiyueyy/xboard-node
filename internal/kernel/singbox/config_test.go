@@ -617,9 +617,12 @@ func TestBuildRoutes_Default(t *testing.T) {
 	assertMapValue(t, route, "final", "direct")
 
 	rules := route["rules"].([]M)
-	if len(rules) < 2 {
-		t.Fatalf("expected at least 2 default rules, got %d", len(rules))
+	if len(rules) < 3 {
+		t.Fatalf("expected sniff and 2 default rules, got %d", len(rules))
 	}
+	assertMapValue(t, rules[0], "action", "sniff")
+
+	rules = routeRulesWithoutSniff(route)
 	assertMapValue(t, rules[0], "outbound", "block")
 	assertMapValue(t, rules[1], "outbound", "block")
 }
@@ -631,7 +634,7 @@ func TestBuildRoutes_WithCustomRules(t *testing.T) {
 		{ID: 3, Match: []string{"allowed.com"}, Action: "direct"},
 	}
 	route := buildRoutes(testRouteRules(rules), nil, nil)
-	allRules := route["rules"].([]M)
+	allRules := routeRulesWithoutSniff(route)
 
 	if len(allRules) != 5 {
 		t.Fatalf("rules count: got %d, want 5", len(allRules))
@@ -656,7 +659,7 @@ func TestBuildRoutes_MultiMatch(t *testing.T) {
 		{ID: 2, Match: []string{"*.bypass.com"}, Action: "direct"},
 	}
 	route := buildRoutes(testRouteRules(rules), nil, nil)
-	allRules := route["rules"].([]M)
+	allRules := routeRulesWithoutSniff(route)
 
 	// 2 default private-IP rules + 1 domain rule + 1 CIDR rule + 1 domain rule = 5
 	if len(allRules) != 5 {
@@ -702,7 +705,7 @@ func TestBuildRoutes_WithCustomRouteRules(t *testing.T) {
 		},
 	}
 	route := buildRoutes(nil, customRules, nil)
-	allRules := route["rules"].([]M)
+	allRules := routeRulesWithoutSniff(route)
 	if len(allRules) != 9 {
 		t.Fatalf("rules count: got %d, want 9", len(allRules))
 	}
@@ -736,7 +739,7 @@ func TestBuildRoutes_StructuredCustomRulesRemainFirst(t *testing.T) {
 		Action: model.RouteAction{Type: "direct"},
 	}}
 	route := buildRoutes(nil, custom, raw)
-	allRules := route["rules"].([]M)
+	allRules := routeRulesWithoutSniff(route)
 	if allRules[0]["outbound"] != "direct" {
 		t.Fatalf("expected structured route first, got %v", allRules[0]["outbound"])
 	}
@@ -763,7 +766,7 @@ func TestBuildRoutes_CustomGeoRulesUseSingboxRuleSets(t *testing.T) {
 	}
 
 	route := buildRoutes(nil, customRules, nil)
-	allRules := route["rules"].([]M)
+	allRules := routeRulesWithoutSniff(route)
 
 	if got := allRules[0]["rule_set"]; !stringSliceEqual(got, []string{"geosite-category-public-tracker"}) {
 		t.Fatalf("geosite rule_set: got %#v", got)
@@ -817,6 +820,18 @@ func TestBuildRoutes_PanelGeoRulesUseSingboxRuleSets(t *testing.T) {
 	if !containsRuleSet(route["rule_set"].([]M), "geoip-cn") || !containsRuleSet(route["rule_set"].([]M), "geosite-google") {
 		t.Fatalf("missing panel geo rule_set definitions: %#v", route["rule_set"])
 	}
+}
+
+func routeRulesWithoutSniff(route M) []M {
+	allRules := route["rules"].([]M)
+	rules := make([]M, 0, len(allRules))
+	for _, rule := range allRules {
+		if rule["action"] == "sniff" {
+			continue
+		}
+		rules = append(rules, rule)
+	}
+	return rules
 }
 
 func stringSliceEqual(value any, want []string) bool {
