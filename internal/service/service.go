@@ -768,11 +768,19 @@ func (s *Service) ensureRunning() bool {
 // applyUserUpdate replaces the full user set and hot-swaps the kernel.
 // Called from WS sync.users and REST polling.
 func (s *Service) applyUserUpdate(ctx context.Context, users []model.UserSpec, newHash string) {
+	wasRunning := s.kernel.IsRunning()
+	prevUsers, prevHash := s.prepareUserState(users)
 	if !s.ensureRunning() {
+		s.restoreUserState(prevUsers, prevHash)
+		return
+	}
+	if !wasRunning {
+		if newHash != "" {
+			s.lastUserHash = newHash
+		}
 		return
 	}
 
-	prevUsers, prevHash := s.prepareUserState(users)
 	added, removed, err := s.kernel.UpdateUsers(users)
 	if err != nil {
 		nlog.Core().Warn(fmt.Sprintf("UpdateUsers failed, restarting kernel: %v", err))
@@ -800,7 +808,13 @@ func (s *Service) applyUserDelta(ctx context.Context, action string, deltaUsers 
 		}
 		merged := mergeUsers(s.lastUsers, deltaUsers)
 
+		wasRunning := s.kernel.IsRunning()
+		prevUsers, prevHash := s.prepareUserState(merged)
 		if !s.ensureRunning() {
+			s.restoreUserState(prevUsers, prevHash)
+			return
+		}
+		if !wasRunning {
 			return
 		}
 
@@ -813,7 +827,6 @@ func (s *Service) applyUserDelta(ctx context.Context, action string, deltaUsers 
 			}
 		}
 
-		prevUsers, prevHash := s.prepareUserState(merged)
 		added, err := s.kernel.AddUsers(deltaUsers)
 		if err != nil {
 			nlog.Core().Warn(fmt.Sprintf("AddUsers failed: %v, falling back to UpdateUsers", err))

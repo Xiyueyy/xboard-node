@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -92,6 +93,11 @@ func (s *SingBox) Protocols() []string {
 func (s *SingBox) Start(nodeConfig *model.NodeSpec, users []model.UserSpec, tls kernel.TLSCert) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.cfg.ConfigDir != "" {
+		if err := os.MkdirAll(s.cfg.ConfigDir, 0o755); err != nil {
+			return fmt.Errorf("create sing-box config directory: %w", err)
+		}
+	}
 
 	cfgMap := buildConfig(s.cfg, nodeConfig, users, tls)
 	data, err := json.Marshal(cfgMap)
