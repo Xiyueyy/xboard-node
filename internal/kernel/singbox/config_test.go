@@ -37,6 +37,8 @@ func TestBuildInbound_Shadowsocks(t *testing.T) {
 	}
 	inbound := buildInbound(testNodeSpec(nc), testUsers, kernel.TLSCert{})
 	assertMapValue(t, inbound, "type", "shadowsocks")
+	assertMapValue(t, inbound, "sniff", true)
+	assertMapValue(t, inbound, "sniff_override_destination", true)
 	assertMapValue(t, inbound, "method", "aes-128-gcm")
 	assertMapValue(t, inbound, "listen_port", 111)
 

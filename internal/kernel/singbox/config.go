@@ -650,9 +650,11 @@ func mergeCustomSingboxRoute(cfg M, customRoute map[string]any) {
 
 func buildInbound(nc *model.NodeSpec, users []model.UserSpec, tc kernel.TLSCert) M {
 	base := M{
-		"tag":         nc.Protocol + "-in",
-		"listen":      "::",
-		"listen_port": nc.ServerPort,
+		"tag":                        nc.Protocol + "-in",
+		"listen":                     "::",
+		"listen_port":                nc.ServerPort,
+		"sniff":                      true,
+		"sniff_override_destination": true,
 	}
 
 	switch nc.Protocol {
