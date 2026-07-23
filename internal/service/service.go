@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -936,6 +937,12 @@ func (s *Service) applyChanges(ctx context.Context, configChanged, usersChanged 
 	if configChanged && s.kernel.IsRunning() {
 		if err := s.kernel.Reload(s.lastConfig, s.lastUsers, s.cert.TLSCert()); err != nil {
 			nlog.Core().Warn(fmt.Sprintf("reload failed, restarting: %v", err))
+			if errors.Is(err, singbox.ErrFullRestartRequired) {
+				// A second sing-box instance cannot bind the same inbound port while
+				// the old one is still listening. Stop it first for configuration
+				// changes (such as custom outbounds) that require a full rebuild.
+				s.kernel.Stop()
+			}
 			s.startKernel(s.lastConfig, s.lastUsers)
 		} else {
 			s.appliedState.Config = s.lastConfig

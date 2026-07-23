@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cedar2025/xboard-node/internal/config"
+	"github.com/cedar2025/xboard-node/internal/model"
 	"github.com/sagernet/sing-box/adapter"
 	singM "github.com/sagernet/sing/common/metadata"
 	"golang.org/x/time/rate"
@@ -36,7 +37,58 @@ func TestSingBoxCapabilities(t *testing.T) {
 	}
 }
 
+func TestCustomOutboundsChanged(t *testing.T) {
+	base := &model.NodeSpec{CustomOutbounds: []model.OutboundConfig{{
+		Tag:      "relay",
+		Protocol: "shadowsocks",
+		Settings: map[string]any{
+			"server":      "relay.example.com",
+			"server_port": 8388,
+			"method":      "2022-blake3-aes-128-gcm",
+			"password":    "secret",
+		},
+	}}}
 
+	unchanged := &model.NodeSpec{CustomOutbounds: []model.OutboundConfig{{
+		Tag:      "relay",
+		Protocol: "shadowsocks",
+		Settings: map[string]any{
+			"server":      "relay.example.com",
+			"server_port": 8388,
+			"method":      "2022-blake3-aes-128-gcm",
+			"password":    "secret",
+		},
+	}}}
+	if customOutboundsChanged(base, unchanged) {
+		t.Fatal("equivalent custom outbounds should not require a full restart")
+	}
+
+	added := &model.NodeSpec{CustomOutbounds: append(
+		append([]model.OutboundConfig(nil), base.CustomOutbounds...),
+		model.OutboundConfig{
+			Tag:      "backup",
+			Protocol: "socks",
+			Settings: map[string]any{"server": "127.0.0.1", "server_port": 1080},
+		},
+	)}
+	if !customOutboundsChanged(base, added) {
+		t.Fatal("adding a custom outbound must require a full restart")
+	}
+
+	modified := &model.NodeSpec{CustomOutbounds: []model.OutboundConfig{{
+		Tag:      "relay",
+		Protocol: "shadowsocks",
+		Settings: map[string]any{
+			"server":      "relay.example.com",
+			"server_port": 9999,
+			"method":      "2022-blake3-aes-128-gcm",
+			"password":    "secret",
+		},
+	}}}
+	if !customOutboundsChanged(base, modified) {
+		t.Fatal("changing custom outbound settings must require a full restart")
+	}
+}
 
 type testConn struct {
 	closed bool
@@ -60,11 +112,11 @@ func (c *testConn) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-func (c *testConn) Close() error { c.closed = true; return nil }
-func (c *testConn) LocalAddr() net.Addr { return &net.TCPAddr{} }
-func (c *testConn) RemoteAddr() net.Addr { return &net.TCPAddr{} }
-func (c *testConn) SetDeadline(time.Time) error { return nil }
-func (c *testConn) SetReadDeadline(time.Time) error { return nil }
+func (c *testConn) Close() error                     { c.closed = true; return nil }
+func (c *testConn) LocalAddr() net.Addr              { return &net.TCPAddr{} }
+func (c *testConn) RemoteAddr() net.Addr             { return &net.TCPAddr{} }
+func (c *testConn) SetDeadline(time.Time) error      { return nil }
+func (c *testConn) SetReadDeadline(time.Time) error  { return nil }
 func (c *testConn) SetWriteDeadline(time.Time) error { return nil }
 
 func testInboundContext(uuid, ip string) adapter.InboundContext {

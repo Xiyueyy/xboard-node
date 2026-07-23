@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"sync"
 	"time"
 
@@ -28,6 +30,11 @@ import (
 // drainTimeout is how long stop() waits for in-flight connections to finish
 // naturally after closing all listen sockets, before hard-killing them.
 const drainTimeout = 5 * time.Second
+
+// ErrFullRestartRequired tells the service layer that the existing Box must
+// be stopped before Start is called again. sing-box cannot hot-reload every
+// configuration object through its manager APIs.
+var ErrFullRestartRequired = errors.New("sing-box full restart required")
 
 // SingBox implements kernel.Kernel by embedding sing-box as a Go library.
 //
@@ -206,6 +213,18 @@ func (s *SingBox) Reload(nodeConfig *model.NodeSpec, users []model.UserSpec, tls
 		return fmt.Errorf("not running")
 	}
 
+	// sing-box cannot hot-add, hot-remove, or mutate outbounds through the
+	// Router API. Updating only the route rules would leave them pointing at
+	// the outbound set created by the previous Box, which results in runtime
+	// errors such as "router: outbound not found". Return an error so the
+	// service layer falls back to Start and atomically replaces the whole Box.
+	//
+	// This commonly happens when a machine-mode node is discovered before its
+	// first user/outbound configuration has finished syncing from the panel.
+	if customOutboundsChanged(s.nodeConfig, nodeConfig) {
+		return fmt.Errorf("%w: custom outbounds changed", ErrFullRestartRequired)
+	}
+
 	cfgMap := buildConfig(s.cfg, nodeConfig, users, tls)
 	data, err := json.Marshal(cfgMap)
 	if err != nil {
@@ -318,6 +337,13 @@ func (s *SingBox) Reload(nodeConfig *model.NodeSpec, users []model.UserSpec, tls
 	s.nodeConfig = nodeConfig
 	s.tls = tls
 	return nil
+}
+
+func customOutboundsChanged(previous, next *model.NodeSpec) bool {
+	if previous == nil || next == nil {
+		return previous != next
+	}
+	return !reflect.DeepEqual(previous.CustomOutbounds, next.CustomOutbounds)
 }
 
 // registerTracker wires the ConnTracker to the current Router exactly once.

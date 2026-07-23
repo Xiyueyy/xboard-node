@@ -9,6 +9,7 @@ import (
 	"github.com/cedar2025/xboard-node/internal/cert"
 	"github.com/cedar2025/xboard-node/internal/config"
 	"github.com/cedar2025/xboard-node/internal/kernel"
+	"github.com/cedar2025/xboard-node/internal/kernel/singbox"
 	"github.com/cedar2025/xboard-node/internal/limiter"
 	"github.com/cedar2025/xboard-node/internal/model"
 	"golang.org/x/time/rate"
@@ -18,10 +19,13 @@ type fakeKernel struct {
 	running bool
 
 	startErr  error
+	reloadErr error
 	updateErr error
 	addErr    error
 
 	startCalls  int
+	reloadCalls int
+	stopCalls   int
 	updateCalls int
 	addCalls    int
 	removeCalls int
@@ -46,11 +50,15 @@ func (f *fakeKernel) Start(nodeConfig *model.NodeSpec, users []model.UserSpec, t
 	f.running = true
 	return nil
 }
-func (f *fakeKernel) Stop()           { f.running = false }
+func (f *fakeKernel) Stop() {
+	f.stopCalls++
+	f.running = false
+}
 func (f *fakeKernel) IsRunning() bool { return f.running }
 func (f *fakeKernel) Reload(nodeConfig *model.NodeSpec, users []model.UserSpec, tls kernel.TLSCert) error {
 	_, _, _ = nodeConfig, users, tls
-	return nil
+	f.reloadCalls++
+	return f.reloadErr
 }
 func (f *fakeKernel) AddUsers(users []model.UserSpec) (int, error) {
 	f.addCalls++
@@ -194,6 +202,31 @@ func TestApplyUserUpdateRestoresStateWhenKernelAndRestartFail(t *testing.T) {
 	}
 	if s.speedTracker.GetLimiter("uuid-new") != nil {
 		t.Fatal("expected new limiter to be removed after rollback")
+	}
+}
+
+func TestApplyChangesStopsSingBoxBeforeRequiredFullRestart(t *testing.T) {
+	k := &fakeKernel{
+		running:   true,
+		reloadErr: singbox.ErrFullRestartRequired,
+	}
+	s := newTestService(k)
+	s.lastConfig = &model.NodeSpec{Protocol: "vless"}
+	s.lastUsers = []model.UserSpec{{ID: 1, UUID: "uuid-1"}}
+
+	s.applyChanges(context.Background(), true, false)
+
+	if got := k.reloadCalls; got != 1 {
+		t.Fatalf("Reload call count = %d, want 1", got)
+	}
+	if got := k.stopCalls; got != 1 {
+		t.Fatalf("Stop call count = %d, want 1", got)
+	}
+	if got := k.startCalls; got != 1 {
+		t.Fatalf("Start call count = %d, want 1", got)
+	}
+	if !k.running {
+		t.Fatal("expected kernel to be running after full restart")
 	}
 }
 
