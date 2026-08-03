@@ -1,5 +1,10 @@
 # xboard-node
 
+`xbctl upgrade` downloads release artifacts from this fork by default:
+`https://github.com/Xiyueyy/xboard-node/releases`. For a private mirror or
+temporary recovery source, set `XBOARD_NODE_DOWNLOAD_BASE` to another release
+base URL before running the upgrade command.
+
 Node backend for [Xboard](https://github.com/cedar2025/Xboard). Supports `sing-box` / `xray-core` dual kernels.
 
 > **Disclaimer**: This project is for educational and learning purposes only.

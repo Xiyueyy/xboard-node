@@ -30,7 +30,7 @@ const (
 	serviceName            = "xboard-node.service"
 	serviceFilePath        = "/etc/systemd/system/xboard-node.service"
 	defaultInstallRoot     = "/etc/xboard-node"
-	downloadBase           = "https://github.com/cedar2025/xboard-node/releases"
+	defaultDownloadBase    = "https://github.com/Xiyueyy/xboard-node/releases"
 )
 
 var (
@@ -54,7 +54,7 @@ type fileRootConfig struct {
 	WS        *config.WSConfig   `yaml:"ws,omitempty"`
 	Runtime   *fileRuntimeConfig `yaml:"runtime,omitempty"`
 	Cert      *config.CertConfig `yaml:"cert,omitempty"`
-	Instances []fileInstance      `yaml:"instances,omitempty"`
+	Instances []fileInstance     `yaml:"instances,omitempty"`
 }
 
 type fileInstance struct {
@@ -593,6 +593,10 @@ func ensureRoot(cmd string) error {
 }
 
 func resolveDownloadURL(artifact, version string) string {
+	downloadBase := strings.TrimRight(strings.TrimSpace(os.Getenv("XBOARD_NODE_DOWNLOAD_BASE")), "/")
+	if downloadBase == "" {
+		downloadBase = defaultDownloadBase
+	}
 	if version == "latest" {
 		return downloadBase + "/latest/download/" + artifact
 	}
