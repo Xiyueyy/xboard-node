@@ -35,6 +35,10 @@ instances:
 EOF
 printf 'INSTANCE_DEMO_API_KEY=test-token\n' > "$LEGACY_INSTALL_ROOT/credentials.env"
 printf '{"version":"legacy"}\n' > "$LEGACY_INSTALL_ROOT/install-meta.json"
+printf 'legacy-certificate\n' > "$LEGACY_INSTALL_ROOT/cert.pem"
+mkdir -p "$LEGACY_INSTALL_ROOT/geodata"
+printf 'legacy-geodata\n' > "$LEGACY_INSTALL_ROOT/geodata/geoip.db"
+printf 'legacy-hidden-state\n' > "$LEGACY_INSTALL_ROOT/.acme-state"
 printf '# legacy unit\n' > "$LEGACY_SERVICE_PATH"
 printf '#!/bin/sh\n' > "$LEGACY_BINARY_PATH"
 printf '#!/bin/sh\n' > "$LEGACY_CLI_PATH"
@@ -46,6 +50,10 @@ test -f "$CONFIG_FILE"
 test -f "$CREDENTIALS_FILE"
 test -f "$INSTALL_META"
 test -d "$INSTALL_ROOT/instances/demo"
+test -f "$INSTALL_ROOT/cert.pem"
+test -f "$INSTALL_ROOT/geodata/geoip.db"
+test -f "$INSTALL_ROOT/.acme-state"
+grep -F 'legacy-certificate' "$INSTALL_ROOT/cert.pem" >/dev/null
 grep -F "$INSTALL_ROOT/instances/demo" "$CONFIG_FILE" >/dev/null
 if grep -F "$LEGACY_INSTALL_ROOT" "$CONFIG_FILE" >/dev/null; then
   echo "legacy path remained in migrated config" >&2

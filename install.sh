@@ -519,6 +519,22 @@ migrate_legacy_layout() {
     if [ -d "$LEGACY_INSTALL_ROOT/instances" ] && [ ! -d "$INSTALL_ROOT/instances" ]; then
         cp -a "$LEGACY_INSTALL_ROOT/instances" "$INSTALL_ROOT/instances"
     fi
+    # Preserve certificates, geodata, custom kernel files, and any other
+    # operator-managed assets before the previous directory is removed.
+    local legacy_item legacy_name
+    shopt -s dotglob nullglob
+    for legacy_item in "$LEGACY_INSTALL_ROOT"/*; do
+        legacy_name="${legacy_item##*/}"
+        case "$legacy_name" in
+            config.yml|credentials.env|install-meta.json|instances)
+                continue
+                ;;
+        esac
+        if [ ! -e "$INSTALL_ROOT/$legacy_name" ]; then
+            cp -a "$legacy_item" "$INSTALL_ROOT/$legacy_name"
+        fi
+    done
+    shopt -u dotglob nullglob
     if [ -f "$CONFIG_FILE" ]; then
         sed -i "s#${LEGACY_INSTALL_ROOT}#${INSTALL_ROOT}#g" "$CONFIG_FILE" || true
     fi
