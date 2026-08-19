@@ -14,10 +14,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cedar2025/xboard-node/internal/config"
-	"github.com/cedar2025/xboard-node/internal/machine"
-	"github.com/cedar2025/xboard-node/internal/nlog"
-	"github.com/cedar2025/xboard-node/internal/service"
+	"github.com/Xiyueyy/rua-edge/internal/brand"
+	"github.com/Xiyueyy/rua-edge/internal/config"
+	"github.com/Xiyueyy/rua-edge/internal/machine"
+	"github.com/Xiyueyy/rua-edge/internal/nlog"
+	"github.com/Xiyueyy/rua-edge/internal/service"
 )
 
 var (
@@ -31,7 +32,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("xboard-node %s (built %s)\n", version, buildTime)
+		fmt.Printf("%s %s (built %s)\n", brand.ProductName, version, buildTime)
 		os.Exit(0)
 	}
 

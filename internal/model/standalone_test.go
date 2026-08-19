@@ -3,7 +3,7 @@ package model
 import (
 	"testing"
 
-	"github.com/cedar2025/xboard-node/internal/config"
+	"github.com/Xiyueyy/rua-edge/internal/config"
 )
 
 func TestNodeSpecFromStandalone(t *testing.T) {

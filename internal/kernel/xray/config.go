@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cedar2025/xboard-node/internal/config"
-	"github.com/cedar2025/xboard-node/internal/kernel"
-	"github.com/cedar2025/xboard-node/internal/model"
-	"github.com/cedar2025/xboard-node/internal/nlog"
+	"github.com/Xiyueyy/rua-edge/internal/config"
+	"github.com/Xiyueyy/rua-edge/internal/kernel"
+	"github.com/Xiyueyy/rua-edge/internal/model"
+	"github.com/Xiyueyy/rua-edge/internal/nlog"
 )
 
 // M is a shorthand for building JSON-like maps

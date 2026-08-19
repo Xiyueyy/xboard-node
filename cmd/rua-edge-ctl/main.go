@@ -17,19 +17,20 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/cedar2025/xboard-node/internal/config"
+	"github.com/Xiyueyy/rua-edge/internal/brand"
+	"github.com/Xiyueyy/rua-edge/internal/config"
 	"gopkg.in/yaml.v3"
 )
 
 const (
-	defaultConfigPath      = "/etc/xboard-node/config.yml"
-	defaultMetaPath        = "/etc/xboard-node/install-meta.json"
-	defaultCredentialsPath = "/etc/xboard-node/credentials.env"
-	defaultBinaryPath      = "/usr/local/bin/xboard-node"
-	defaultCLIPath         = "/usr/local/bin/xbctl"
-	serviceName            = "xboard-node.service"
-	serviceFilePath        = "/etc/systemd/system/xboard-node.service"
-	defaultInstallRoot     = "/etc/xboard-node"
+	defaultConfigPath      = "/etc/rua-edge/config.yml"
+	defaultMetaPath        = "/etc/rua-edge/install-meta.json"
+	defaultCredentialsPath = "/etc/rua-edge/credentials.env"
+	defaultBinaryPath      = "/usr/local/bin/rua-edge"
+	defaultCLIPath         = "/usr/local/bin/rua-edge-ctl"
+	serviceName            = "rua-edge.service"
+	serviceFilePath        = "/etc/systemd/system/rua-edge.service"
+	defaultInstallRoot     = "/etc/rua-edge"
 	defaultDownloadBase    = "https://github.com/Xiyueyy/xboard-node/releases"
 )
 
@@ -183,7 +184,7 @@ func run(args []string) error {
 	case "uninstall":
 		return runUninstall(args[1:])
 	case "version", "-v", "--version":
-		fmt.Printf("xbctl %s (built %s)\n", version, buildTime)
+		fmt.Printf("%s %s (built %s)\n", brand.CLIName, version, buildTime)
 		return nil
 	case "config":
 		return runConfig(args[1:])
@@ -196,36 +197,36 @@ func run(args []string) error {
 }
 
 func printUsage() {
-	fmt.Println(`xbctl commands:
-  xbctl help
-  xbctl status
-  xbctl list [--output text|json]
-  xbctl instance list [--output text|json]
-  xbctl instance get <id> [--output text|json]
-  xbctl config init --mode node|machine --panel-url URL --token TOKEN [flags]
-  xbctl config health-port [--config PATH]
-  xbctl service status|start|stop|restart|enable|disable|logs
-  xbctl health
-  xbctl bind add-node --panel-url URL --token TOKEN --node-id ID [--node-type TYPE] [--kernel singbox|xray]
-  xbctl bind add-machine --panel-url URL --token TOKEN --machine-id ID [--kernel singbox|xray]
-  xbctl bind remove <instance-id>
-  xbctl bind remove-node --panel URL --node-id ID
-  xbctl bind remove-machine --panel URL --machine-id ID
-  xbctl upgrade [--version VERSION]
-  xbctl uninstall [--purge] [--yes]
-  xbctl version
+	fmt.Println(`rua-edge-ctl commands:
+  rua-edge-ctl help
+  rua-edge-ctl status
+  rua-edge-ctl list [--output text|json]
+  rua-edge-ctl instance list [--output text|json]
+  rua-edge-ctl instance get <id> [--output text|json]
+  rua-edge-ctl config init --mode node|machine --panel-url URL --token TOKEN [flags]
+  rua-edge-ctl config health-port [--config PATH]
+  rua-edge-ctl service status|start|stop|restart|enable|disable|logs
+  rua-edge-ctl health
+  rua-edge-ctl bind add-node --panel-url URL --token TOKEN --node-id ID [--node-type TYPE] [--kernel singbox|xray]
+  rua-edge-ctl bind add-machine --panel-url URL --token TOKEN --machine-id ID [--kernel singbox|xray]
+  rua-edge-ctl bind remove <instance-id>
+  rua-edge-ctl bind remove-node --panel URL --node-id ID
+  rua-edge-ctl bind remove-machine --panel URL --machine-id ID
+  rua-edge-ctl upgrade [--version VERSION]
+  rua-edge-ctl uninstall [--purge] [--yes]
+  rua-edge-ctl version
 
 shortcuts:
-  xbctl start|stop|restart        = xbctl service start|stop|restart
-  xbctl log|logs                  = xbctl service logs
-  xbctl bind-node ...             = xbctl bind add-node ...
-  xbctl bind-machine ...          = xbctl bind add-machine ...
-  xbctl unbind-node ...           = xbctl bind remove-node ...
-  xbctl unbind-machine ...        = xbctl bind remove-machine ...`)
+  rua-edge-ctl start|stop|restart        = rua-edge-ctl service start|stop|restart
+  rua-edge-ctl log|logs                  = rua-edge-ctl service logs
+  rua-edge-ctl bind-node ...             = rua-edge-ctl bind add-node ...
+  rua-edge-ctl bind-machine ...          = rua-edge-ctl bind add-machine ...
+  rua-edge-ctl unbind-node ...           = rua-edge-ctl bind remove-node ...
+  rua-edge-ctl unbind-machine ...        = rua-edge-ctl bind remove-machine ...`)
 }
 
 func runStatus() error {
-	fmt.Println("xboard-node status")
+	fmt.Println("rua-edge status")
 	fmt.Println()
 
 	// Version from install-meta.json
@@ -273,7 +274,7 @@ func runInstance(args []string) error {
 		return fmt.Errorf("unknown instance command: %s", args[0])
 	}
 	if len(args) < 2 {
-		return errors.New("usage: xbctl instance get <id> [--output text|json]")
+		return errors.New("usage: rua-edge-ctl instance get <id> [--output text|json]")
 	}
 	id := args[1]
 	output := parseOutput(args[2:])
@@ -291,7 +292,7 @@ func runInstance(args []string) error {
 
 func runService(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: xbctl service <status|start|stop|restart|enable|disable|logs>")
+		return errors.New("usage: rua-edge-ctl service <status|start|stop|restart|enable|disable|logs>")
 	}
 	sub := args[0]
 	rest := args[1:]
@@ -321,7 +322,7 @@ func runHealth() error {
 
 func runBind(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: xbctl bind <add-node|add-machine|remove-node|remove-machine> ...")
+		return errors.New("usage: rua-edge-ctl bind <add-node|add-machine|remove-node|remove-machine> ...")
 	}
 	if err := ensureRoot("bind"); err != nil {
 		return err
@@ -347,7 +348,7 @@ func runBind(args []string) error {
 		return removeBinding(panel, 0, machineID, "")
 	case "remove":
 		if len(rest) == 0 {
-			return errors.New("usage: xbctl bind remove <instance-id>")
+			return errors.New("usage: rua-edge-ctl bind remove <instance-id>")
 		}
 		return removeBinding("", 0, 0, rest[0])
 	default:
@@ -403,11 +404,11 @@ func runUpgrade(args []string) error {
 
 	binaryDir := filepath.Dir(defaultBinaryPath)
 	cliDir := filepath.Dir(defaultCLIPath)
-	newBinary := filepath.Join(binaryDir, ".xboard-node.new")
-	newCLI := filepath.Join(cliDir, ".xbctl.new")
+	newBinary := filepath.Join(binaryDir, ".rua-edge.new")
+	newCLI := filepath.Join(cliDir, ".rua-edge-ctl.new")
 
-	binaryURL := resolveDownloadURL(fmt.Sprintf("xboard-node-linux-%s", arch), version)
-	cliURL := resolveDownloadURL(fmt.Sprintf("xbctl-linux-%s", arch), version)
+	binaryURL := resolveDownloadURL(fmt.Sprintf("rua-edge-linux-%s", arch), version)
+	cliURL := resolveDownloadURL(fmt.Sprintf("rua-edge-ctl-linux-%s", arch), version)
 
 	fmt.Printf("Downloading %s...\n", binaryURL)
 	if err := downloadFile(binaryURL, newBinary); err != nil {
@@ -417,14 +418,14 @@ func runUpgrade(args []string) error {
 	fmt.Printf("Downloading %s...\n", cliURL)
 	if err := downloadFile(cliURL, newCLI); err != nil {
 		os.Remove(newBinary)
-		return fmt.Errorf("download xbctl: %w", err)
+		return fmt.Errorf("download rua-edge-ctl: %w", err)
 	}
 
 	if err := os.Chmod(newBinary, 0o755); err != nil {
 		return cleanupFiles(newBinary, newCLI, fmt.Errorf("chmod binary: %w", err))
 	}
 	if err := os.Chmod(newCLI, 0o755); err != nil {
-		return cleanupFiles(newBinary, newCLI, fmt.Errorf("chmod xbctl: %w", err))
+		return cleanupFiles(newBinary, newCLI, fmt.Errorf("chmod rua-edge-ctl: %w", err))
 	}
 
 	// Validate downloaded binaries
@@ -432,7 +433,7 @@ func runUpgrade(args []string) error {
 		return cleanupFiles(newBinary, newCLI, fmt.Errorf("binary version check failed: %s", string(out)))
 	}
 	if out, err := exec.Command(newCLI, "version").CombinedOutput(); err != nil {
-		return cleanupFiles(newBinary, newCLI, fmt.Errorf("xbctl version check failed: %s", string(out)))
+		return cleanupFiles(newBinary, newCLI, fmt.Errorf("rua-edge-ctl version check failed: %s", string(out)))
 	}
 
 	// Backup existing binaries
@@ -446,7 +447,7 @@ func runUpgrade(args []string) error {
 	}
 	if fileExists(defaultCLIPath) {
 		if err := copyFile(defaultCLIPath, backupCLI); err != nil {
-			return cleanupFiles(newBinary, newCLI, fmt.Errorf("backup xbctl: %w", err))
+			return cleanupFiles(newBinary, newCLI, fmt.Errorf("backup rua-edge-ctl: %w", err))
 		}
 	}
 
@@ -459,12 +460,12 @@ func runUpgrade(args []string) error {
 			os.Rename(backupBinary, defaultBinaryPath)
 		}
 		os.Remove(newCLI)
-		return fmt.Errorf("replace xbctl: %w", err)
+		return fmt.Errorf("replace rua-edge-ctl: %w", err)
 	}
 
-	// Recreate /usr/bin/xbctl symlink
-	os.Remove("/usr/bin/xbctl")
-	os.Symlink(defaultCLIPath, "/usr/bin/xbctl")
+	// Recreate /usr/bin/rua-edge-ctl symlink
+	os.Remove("/usr/bin/rua-edge-ctl")
+	os.Symlink(defaultCLIPath, "/usr/bin/rua-edge-ctl")
 
 	// Restart service
 	fmt.Println("Restarting service...")
@@ -480,7 +481,7 @@ func runUpgrade(args []string) error {
 		}
 		if fileExists(backupCLI) {
 			if e := os.Rename(backupCLI, defaultCLIPath); e != nil {
-				fmt.Printf("Warning: rollback xbctl failed: %v\n", e)
+				fmt.Printf("Warning: rollback rua-edge-ctl failed: %v\n", e)
 				rollbackOK = false
 			}
 		}
@@ -556,7 +557,7 @@ func runUninstall(args []string) error {
 
 	// Remove binaries
 	// Remove binaries and symlinks
-	for _, p := range []string{defaultBinaryPath, defaultCLIPath, "/usr/bin/xbctl"} {
+	for _, p := range []string{defaultBinaryPath, defaultCLIPath, "/usr/bin/rua-edge-ctl"} {
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 			warnings = append(warnings, fmt.Sprintf("remove %s: %v", p, err))
 		}
@@ -593,7 +594,11 @@ func ensureRoot(cmd string) error {
 }
 
 func resolveDownloadURL(artifact, version string) string {
-	downloadBase := strings.TrimRight(strings.TrimSpace(os.Getenv("XBOARD_NODE_DOWNLOAD_BASE")), "/")
+	downloadBase := strings.TrimRight(strings.TrimSpace(os.Getenv("RUA_EDGE_DOWNLOAD_BASE")), "/")
+	if downloadBase == "" {
+		// Backward-compatible override used by releases before the rebrand.
+		downloadBase = strings.TrimRight(strings.TrimSpace(os.Getenv("XBOARD_NODE_DOWNLOAD_BASE")), "/")
+	}
 	if downloadBase == "" {
 		downloadBase = defaultDownloadBase
 	}
@@ -687,7 +692,7 @@ func parseRemoveNodeArgs(args []string) (string, int, error) {
 		}
 	}
 	if strings.TrimSpace(panel) == "" || nodeID <= 0 {
-		return "", 0, errors.New("usage: xbctl bind remove-node --panel URL --node-id ID")
+		return "", 0, errors.New("usage: rua-edge-ctl bind remove-node --panel URL --node-id ID")
 	}
 	return strings.TrimSpace(panel), nodeID, nil
 }
@@ -718,7 +723,7 @@ func parseRemoveMachineArgs(args []string) (string, int, error) {
 		}
 	}
 	if strings.TrimSpace(panel) == "" || machineID <= 0 {
-		return "", 0, errors.New("usage: xbctl bind remove-machine --panel URL --machine-id ID")
+		return "", 0, errors.New("usage: rua-edge-ctl bind remove-machine --panel URL --machine-id ID")
 	}
 	return strings.TrimSpace(panel), machineID, nil
 }
@@ -789,7 +794,7 @@ func removeBinding(panelURL string, nodeID int, machineID int, instanceID string
 		runCommand("systemctl", "stop", serviceName)
 		fmt.Printf("removed %d binding(s)\n", len(removed))
 		fmt.Println("All bindings removed. Service stopped.")
-		fmt.Println("Use 'xbctl bind add-node/add-machine' to add a new binding, or 'xbctl uninstall' to fully uninstall.")
+		fmt.Println("Use 'rua-edge-ctl bind add-node/add-machine' to add a new binding, or 'rua-edge-ctl uninstall' to fully uninstall.")
 		return nil
 	}
 
@@ -1160,8 +1165,8 @@ func latestInstanceID(instances []*config.Config) string {
 
 func regenerateServiceFile() error {
 	unit := fmt.Sprintf(`[Unit]
-Description=Xboard Node Backend
-Documentation=https://github.com/cedar2025/xboard-node
+Description=RUA Edge Runtime
+Documentation=https://github.com/Xiyueyy/Ruaboard
 After=network-online.target
 Wants=network-online.target
 
@@ -1195,7 +1200,7 @@ func machineIDPtr(cfg *config.Config) *int {
 
 func runConfig(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: xbctl config <init|health-port>")
+		return errors.New("usage: rua-edge-ctl config <init|health-port>")
 	}
 	switch args[0] {
 	case "init":
@@ -1352,7 +1357,7 @@ func runConfigInit(args []string) error {
 	inst.InstanceID = instanceID
 
 	if installRoot == "" {
-		installRoot = "/etc/xboard-node"
+		installRoot = "/etc/rua-edge"
 	}
 	inst.Kernel.ConfigDir = filepath.Join(installRoot, "instances", instanceID)
 

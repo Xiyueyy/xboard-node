@@ -8,16 +8,16 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-APP_NAME="xboard-node"
-INSTALL_ROOT="/etc/xboard-node"
+APP_NAME="rua-edge"
+INSTALL_ROOT="/etc/rua-edge"
 BACKUP_DIR="${INSTALL_ROOT}/backups"
 INSTALL_META="${INSTALL_ROOT}/install-meta.json"
 CONFIG_FILE="${INSTALL_ROOT}/config.yml"
 CREDENTIALS_FILE="${INSTALL_ROOT}/credentials.env"
-BINARY_PATH="/usr/local/bin/xboard-node"
-SERVICE_NAME="xboard-node.service"
+BINARY_PATH="/usr/local/bin/rua-edge"
+SERVICE_NAME="rua-edge.service"
 SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}"
-CLI_PATH="/usr/local/bin/xbctl"
+CLI_PATH="/usr/local/bin/rua-edge-ctl"
 INSTALLER_COPY_PATH="${INSTALL_ROOT}/install.sh"
 CLI_BINARY_SOURCE=""
 DEFAULT_HEALTH_PORT=65530
@@ -28,6 +28,14 @@ DEFAULT_RELEASE_VERSION="latest"
 DEFAULT_LOG_LEVEL="info"
 DEFAULT_KERNEL_LOG_LEVEL="warn"
 DEFAULT_DOWNLOAD_BASE="https://github.com/Xiyueyy/xboard-node/releases"
+
+# Legacy locations are read only for one-time in-place migration. They are
+# removed after RUA Edge has started successfully.
+LEGACY_INSTALL_ROOT="/etc/xboard-node"
+LEGACY_BINARY_PATH="/usr/local/bin/xboard-node"
+LEGACY_CLI_PATH="/usr/local/bin/xbctl"
+LEGACY_SERVICE_NAME="xboard-node.service"
+LEGACY_SERVICE_PATH="/etc/systemd/system/${LEGACY_SERVICE_NAME}"
 
 ACTION="${DEFAULT_ACTION}"
 MODE=""
@@ -54,6 +62,7 @@ CURRENT_STATE="fresh"
 TMP_DIR=""
 BACKUP_PATH=""
 SERVICE_EXISTED=0
+LEGACY_WAS_ACTIVE=0
 CLEANUP_DONE=0
 
 log_info()  { echo -e "${GREEN}[INFO]${NC} $1"; }
@@ -100,8 +109,8 @@ load_health_port_from_config() {
 rollback_install() {
     log_warn "Rolling back installation"
     if [ -n "$BACKUP_PATH" ] && [ -d "$BACKUP_PATH" ]; then
-        if [ -f "$BACKUP_PATH/xboard-node" ]; then
-            install -m 755 "$BACKUP_PATH/xboard-node" "$BINARY_PATH"
+        if [ -f "$BACKUP_PATH/rua-edge" ]; then
+            install -m 755 "$BACKUP_PATH/rua-edge" "$BINARY_PATH"
         else
             rm -f "$BINARY_PATH"
         fi
@@ -120,8 +129,8 @@ rollback_install() {
         else
             rm -f "$INSTALL_META"
         fi
-        if [ -f "$BACKUP_PATH/xbctl" ]; then
-            install -m 755 "$BACKUP_PATH/xbctl" "$CLI_PATH"
+        if [ -f "$BACKUP_PATH/rua-edge-ctl" ]; then
+            install -m 755 "$BACKUP_PATH/rua-edge-ctl" "$CLI_PATH"
         else
             rm -f "$CLI_PATH"
         fi
@@ -144,6 +153,12 @@ rollback_install() {
     else
         systemctl disable "$SERVICE_NAME" >/dev/null 2>&1 || true
     fi
+    if [ "$LEGACY_WAS_ACTIVE" -eq 1 ] && [ -f "$LEGACY_SERVICE_PATH" ]; then
+        systemctl daemon-reload >/dev/null 2>&1 || true
+        systemctl enable "$LEGACY_SERVICE_NAME" >/dev/null 2>&1 || true
+        systemctl restart "$LEGACY_SERVICE_NAME" >/dev/null 2>&1 || true
+        log_warn "Previous runtime service restored"
+    fi
     log_warn "Rollback complete"
 }
 
@@ -165,7 +180,7 @@ trap cleanup_tmp EXIT
 usage() {
     cat <<'HELP'
 
-  xboard-node Installer
+  RUA Edge Installer
 
   ACTIONS:
     install      Install or reconcile the configured deployment (default)
@@ -192,13 +207,14 @@ usage() {
     --node-type, -T     Explicit node type for node mode
     --kernel, -k        singbox or xray (default: singbox)
     --version           Release version or latest (default: latest)
-    --binary            Use a local xboard-node binary path instead of downloading
-    --xbctl-binary      Use a local xbctl binary path instead of downloading
+    --binary            Use a local RUA Edge binary path instead of downloading
+    --ctl-binary        Use a local RUA Edge control binary path instead of downloading
+    --xbctl-binary      Legacy alias for --ctl-binary
     --health-port       Local health port (default: 65530, use 0 to disable)
     --gomemlimit        Runtime GOMEMLIMIT value, e.g. 256MiB
     --gogc              Runtime GOGC value, e.g. 50
     --force-reconfigure Overwrite an existing install even if mode/target changed
-    --purge             With uninstall, delete /etc/xboard-node too
+    --purge             With uninstall, delete /etc/rua-edge too
     --yes, -y           Non-interactive confirmation for destructive operations
 
   EXAMPLES:
@@ -254,7 +270,7 @@ parse_args() {
                 BINARY_SOURCE="$2"
                 shift 2
                 ;;
-            --xbctl-binary)
+            --ctl-binary|--xbctl-binary)
                 CLI_BINARY_SOURCE="$2"
                 shift 2
                 ;;
@@ -474,15 +490,47 @@ select_binary_source() {
         echo "$BINARY_SOURCE"
         return
     fi
-    if [ -f "./xboard-node" ]; then
-        echo "./xboard-node"
+    if [ -f "./rua-edge" ]; then
+        echo "./rua-edge"
         return
     fi
-    if [ -f "./xboard-node-linux-${ARCH}" ]; then
-        echo "./xboard-node-linux-${ARCH}"
+    if [ -f "./rua-edge-linux-${ARCH}" ]; then
+        echo "./rua-edge-linux-${ARCH}"
         return
     fi
     echo ""
+}
+
+migrate_legacy_layout() {
+    if [ ! -d "$LEGACY_INSTALL_ROOT" ] && [ ! -f "$LEGACY_SERVICE_PATH" ] && [ ! -x "$LEGACY_BINARY_PATH" ]; then
+        return
+    fi
+
+    log_step "Migrating previous runtime layout to RUA Edge"
+    if systemctl is-active "$LEGACY_SERVICE_NAME" >/dev/null 2>&1; then
+        LEGACY_WAS_ACTIVE=1
+    fi
+    mkdir -p "$INSTALL_ROOT"
+    for name in config.yml credentials.env install-meta.json; do
+        if [ -f "$LEGACY_INSTALL_ROOT/$name" ] && [ ! -f "$INSTALL_ROOT/$name" ]; then
+            cp -a "$LEGACY_INSTALL_ROOT/$name" "$INSTALL_ROOT/$name"
+        fi
+    done
+    if [ -d "$LEGACY_INSTALL_ROOT/instances" ] && [ ! -d "$INSTALL_ROOT/instances" ]; then
+        cp -a "$LEGACY_INSTALL_ROOT/instances" "$INSTALL_ROOT/instances"
+    fi
+    if [ -f "$CONFIG_FILE" ]; then
+        sed -i "s#${LEGACY_INSTALL_ROOT}#${INSTALL_ROOT}#g" "$CONFIG_FILE" || true
+    fi
+    log_info "Previous configuration imported; panel bindings and tokens were preserved"
+}
+
+remove_legacy_runtime() {
+    systemctl stop "$LEGACY_SERVICE_NAME" >/dev/null 2>&1 || true
+    systemctl disable "$LEGACY_SERVICE_NAME" >/dev/null 2>&1 || true
+    rm -f "$LEGACY_SERVICE_PATH" "$LEGACY_BINARY_PATH" "$LEGACY_CLI_PATH" /usr/bin/xbctl
+    rm -rf "$LEGACY_INSTALL_ROOT"
+    systemctl daemon-reload >/dev/null 2>&1 || true
 }
 
 resolve_download_url() {
@@ -495,14 +543,14 @@ resolve_download_url() {
 }
 
 stage_binary() {
-    local staged="$TMP_DIR/xboard-node"
+    local staged="$TMP_DIR/rua-edge"
     local local_src
     local_src=$(select_binary_source)
     if [ -n "$local_src" ]; then
         log_step "Using local binary: ${local_src}"
         cp "$local_src" "$staged"
     else
-        resolve_download_url "xboard-node-linux-${ARCH}"
+        resolve_download_url "rua-edge-linux-${ARCH}"
         log_step "Downloading binary: ${DOWNLOAD_URL}"
         if ! curl -fsSL "$DOWNLOAD_URL" -o "$staged"; then
             log_error "Failed to download binary from ${DOWNLOAD_URL}"
@@ -516,34 +564,34 @@ stage_binary() {
     fi
 }
 
-stage_xbctl() {
-    local staged="$TMP_DIR/xbctl"
+stage_ctl() {
+    local staged="$TMP_DIR/rua-edge-ctl"
     local local_src=""
     if [ -n "$CLI_BINARY_SOURCE" ]; then
         if [ ! -f "$CLI_BINARY_SOURCE" ]; then
-            log_error "xbctl binary source not found: $CLI_BINARY_SOURCE"
+            log_error "RUA Edge control binary source not found: $CLI_BINARY_SOURCE"
             exit 1
         fi
         local_src="$CLI_BINARY_SOURCE"
-    elif [ -f "./xbctl" ]; then
-        local_src="./xbctl"
-    elif [ -f "./xbctl-linux-${ARCH}" ]; then
-        local_src="./xbctl-linux-${ARCH}"
+    elif [ -f "./rua-edge-ctl" ]; then
+        local_src="./rua-edge-ctl"
+    elif [ -f "./rua-edge-ctl-linux-${ARCH}" ]; then
+        local_src="./rua-edge-ctl-linux-${ARCH}"
     fi
     if [ -n "$local_src" ]; then
-        log_step "Using local xbctl binary: ${local_src}"
+        log_step "Using local RUA Edge control binary: ${local_src}"
         cp "$local_src" "$staged"
     else
-        resolve_download_url "xbctl-linux-${ARCH}"
-        log_step "Downloading xbctl: ${DOWNLOAD_URL}"
+        resolve_download_url "rua-edge-ctl-linux-${ARCH}"
+        log_step "Downloading RUA Edge control tool: ${DOWNLOAD_URL}"
         if ! curl -fsSL "$DOWNLOAD_URL" -o "$staged"; then
-            log_error "Failed to download xbctl from ${DOWNLOAD_URL}"
+            log_error "Failed to download RUA Edge control tool from ${DOWNLOAD_URL}"
             exit 1
         fi
     fi
     chmod +x "$staged"
     if ! "$staged" version > /dev/null 2>&1; then
-        log_error "Downloaded xbctl failed version check"
+        log_error "Downloaded RUA Edge control tool failed version check"
         exit 1
     fi
 }
@@ -584,8 +632,8 @@ render_config() {
     fi
 
     local output
-    output=$("$TMP_DIR/xbctl" "${init_args[@]}") || {
-        log_error "xbctl config init failed"
+    output=$("$TMP_DIR/rua-edge-ctl" "${init_args[@]}") || {
+        log_error "RUA Edge control config init failed"
         exit 1
     }
 
@@ -596,8 +644,8 @@ render_config() {
 render_service() {
     cat >"$TMP_DIR/${SERVICE_NAME}" <<EOF_UNIT
 [Unit]
-Description=Xboard Node Backend
-Documentation=https://github.com/Xiyueyy/xboard-node
+Description=RUA Edge Runtime
+Documentation=https://github.com/Xiyueyy/Ruaboard
 After=network-online.target
 Wants=network-online.target
 
@@ -622,10 +670,10 @@ backup_existing_state() {
     BACKUP_PATH="${BACKUP_DIR}/$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$BACKUP_PATH"
     if [ -x "$BINARY_PATH" ]; then
-        cp "$BINARY_PATH" "$BACKUP_PATH/xboard-node"
+        cp "$BINARY_PATH" "$BACKUP_PATH/rua-edge"
     fi
     if [ -x "$CLI_PATH" ]; then
-        cp "$CLI_PATH" "$BACKUP_PATH/xbctl"
+        cp "$CLI_PATH" "$BACKUP_PATH/rua-edge-ctl"
     fi
     if [ -f "$CONFIG_FILE" ]; then
         cp "$CONFIG_FILE" "$BACKUP_PATH/config.yml"
@@ -648,19 +696,25 @@ stop_existing_service() {
     if [ -f "$SERVICE_PATH" ] || systemctl is-active "$SERVICE_NAME" >/dev/null 2>&1; then
         systemctl stop "$SERVICE_NAME" >/dev/null 2>&1 || true
     fi
+    if [ -f "$LEGACY_SERVICE_PATH" ] || systemctl is-active "$LEGACY_SERVICE_NAME" >/dev/null 2>&1; then
+        if systemctl is-active "$LEGACY_SERVICE_NAME" >/dev/null 2>&1; then
+            LEGACY_WAS_ACTIVE=1
+        fi
+        systemctl stop "$LEGACY_SERVICE_NAME" >/dev/null 2>&1 || true
+    fi
 }
 
 install_staged_files() {
     stop_existing_service
-    install -m 755 "$TMP_DIR/xboard-node" "$BINARY_PATH"
+    install -m 755 "$TMP_DIR/rua-edge" "$BINARY_PATH"
     install -m 600 "$TMP_DIR/config.yml" "$CONFIG_FILE"
     install -m 600 "$TMP_DIR/credentials.env" "$CREDENTIALS_FILE"
     install -m 644 "$TMP_DIR/install-meta.json" "$INSTALL_META"
     if [ -f "$0" ] && [ "$(realpath "$0")" != "$(realpath "$INSTALLER_COPY_PATH" 2>/dev/null || echo "$INSTALLER_COPY_PATH")" ]; then
         install -m 755 "$0" "$INSTALLER_COPY_PATH"
     fi
-    install -m 755 "$TMP_DIR/xbctl" "$CLI_PATH"
-    ln -sf "$CLI_PATH" /usr/bin/xbctl 2>/dev/null || true
+    install -m 755 "$TMP_DIR/rua-edge-ctl" "$CLI_PATH"
+    ln -sf "$CLI_PATH" /usr/bin/rua-edge-ctl 2>/dev/null || true
     install -m 644 "$TMP_DIR/${SERVICE_NAME}" "$SERVICE_PATH"
     systemctl daemon-reload
     systemctl enable "$SERVICE_NAME" > /dev/null 2>&1
@@ -708,18 +762,20 @@ start_service() {
 }
 
 perform_install() {
+    migrate_legacy_layout
     validate_install_request
     detect_current_state
     require_reconfigure_confirmation
     TMP_DIR=$(mktemp -d)
     ensure_dirs
     stage_binary
-    stage_xbctl
+    stage_ctl
     render_config
     render_service
     backup_existing_state
     install_staged_files
     start_service
+    remove_legacy_runtime
 
     log_info "Installation succeeded"
     log_info "Service: ${SERVICE_NAME}"
@@ -728,10 +784,11 @@ perform_install() {
     if [ "$HEALTH_ENABLED" -eq 1 ]; then
         log_info "Health: http://127.0.0.1:${HEALTH_PORT}/healthz"
     fi
-    log_info "CLI: ${CLI_PATH}  (run '${CLI_PATH} list' if xbctl is not in PATH)"
+    log_info "CLI: ${CLI_PATH}  (run '${CLI_PATH} list' if rua-edge-ctl is not in PATH)"
 }
 
 perform_upgrade() {
+    migrate_legacy_layout
     detect_current_state
     load_health_port_from_config "$CONFIG_FILE"
     if [ "$CURRENT_STATE" = "fresh" ]; then
@@ -742,12 +799,12 @@ perform_upgrade() {
     TMP_DIR=$(mktemp -d)
     ensure_dirs
     stage_binary
-    stage_xbctl
+    stage_ctl
     render_service
     backup_existing_state
-    install -m 755 "$TMP_DIR/xboard-node" "$BINARY_PATH"
-    install -m 755 "$TMP_DIR/xbctl" "$CLI_PATH"
-    ln -sf "$CLI_PATH" /usr/bin/xbctl 2>/dev/null || true
+    install -m 755 "$TMP_DIR/rua-edge" "$BINARY_PATH"
+    install -m 755 "$TMP_DIR/rua-edge-ctl" "$CLI_PATH"
+    ln -sf "$CLI_PATH" /usr/bin/rua-edge-ctl 2>/dev/null || true
     install -m 644 "$TMP_DIR/${SERVICE_NAME}" "$SERVICE_PATH"
     systemctl daemon-reload
     systemctl restart "$SERVICE_NAME"
@@ -756,6 +813,7 @@ perform_upgrade() {
         show_recent_logs
         return 1
     fi
+    remove_legacy_runtime
     log_info "Upgrade succeeded"
 }
 
@@ -781,9 +839,11 @@ perform_uninstall() {
     fi
     rm -f "$BINARY_PATH"
     rm -f "$CLI_PATH"
-    rm -f /usr/bin/xbctl 2>/dev/null || true
+    rm -f /usr/bin/rua-edge-ctl 2>/dev/null || true
+    rm -f "$LEGACY_SERVICE_PATH" "$LEGACY_BINARY_PATH" "$LEGACY_CLI_PATH" /usr/bin/xbctl 2>/dev/null || true
     if [ "$PURGE" -eq 1 ]; then
         rm -rf "$INSTALL_ROOT"
+        rm -rf "$LEGACY_INSTALL_ROOT"
         log_info "Removed ${INSTALL_ROOT}"
     else
         rm -f "$INSTALL_META"
@@ -795,7 +855,7 @@ perform_uninstall() {
 perform_status() {
     detect_current_state
     echo
-    echo -e "${BOLD}xboard-node install status${NC}"
+    echo -e "${BOLD}RUA Edge install status${NC}"
     echo "  state:   ${CURRENT_STATE}"
     if [ -f "$INSTALL_META" ]; then
         echo "  meta:    ${INSTALL_META}"
@@ -855,4 +915,6 @@ main() {
     esac
 }
 
-main "$@"
+if [ "${RUA_EDGE_INSTALLER_LIB_ONLY:-0}" != "1" ]; then
+    main "$@"
+fi

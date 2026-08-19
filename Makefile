@@ -1,45 +1,39 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-LDFLAGS := -s -w -X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME) -X main.commit=$(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+LDFLAGS := -s -w -X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)
+BUILD_TAGS := with_quic with_utls with_wireguard with_acme with_clash_api
 
 .PHONY: build clean test docker install build-linux build-linux-arm64 build-all
 
-# Build for current platform
 build:
-	go build -ldflags "$(LDFLAGS)" -tags "with_quic with_utls with_wireguard with_clash_api" -o xboard-node ./cmd/xboard-node
-	go build -ldflags "$(LDFLAGS)" -o xbctl ./cmd/xbctl
+	go build -trimpath -ldflags "$(LDFLAGS)" -tags "$(BUILD_TAGS)" -o rua-edge ./cmd/rua-edge
+	go build -trimpath -ldflags "$(LDFLAGS)" -o rua-edge-ctl ./cmd/rua-edge-ctl
 
-# Build for Linux amd64
 build-linux:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -tags "with_quic with_utls with_wireguard with_acme with_clash_api" -o xboard-node-linux-amd64 ./cmd/xboard-node
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o xbctl-linux-amd64 ./cmd/xbctl
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$(LDFLAGS)" -tags "$(BUILD_TAGS)" -o rua-edge-linux-amd64 ./cmd/rua-edge
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$(LDFLAGS)" -o rua-edge-ctl-linux-amd64 ./cmd/rua-edge-ctl
 
-# Build for Linux arm64
 build-linux-arm64:
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -tags "with_quic with_utls with_wireguard with_acme with_clash_api" -o xboard-node-linux-arm64 ./cmd/xboard-node
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o xbctl-linux-arm64 ./cmd/xbctl
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "$(LDFLAGS)" -tags "$(BUILD_TAGS)" -o rua-edge-linux-arm64 ./cmd/rua-edge
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "$(LDFLAGS)" -o rua-edge-ctl-linux-arm64 ./cmd/rua-edge-ctl
 
-# Build all platforms
 build-all: build-linux build-linux-arm64
 
-# Run tests
 test:
-	go test -v -race -count=1 ./internal/...
+	go test -race -count=1 ./...
+	bash scripts/test-install-migration.sh
 
-# Clean build artifacts
 clean:
-	rm -f xboard-node xbctl xboard-node-linux-* xbctl-linux-*
+	rm -f rua-edge rua-edge-ctl rua-edge-linux-* rua-edge-ctl-linux-*
 
-# Build Docker image
 docker:
-	docker build -t xboard-node:$(VERSION) -t xboard-node:latest .
+	docker build -t rua-edge:$(VERSION) -t rua-edge:latest .
 
-# Install to system (single node, legacy compat)
 install: build
-	sudo cp xboard-node /usr/local/bin/
-	sudo cp xbctl /usr/local/bin/
-	sudo mkdir -p /etc/xboard-node
-	@if [ ! -f /etc/xboard-node/config.yml ]; then \
-		sudo cp config.yml.example /etc/xboard-node/config.yml; \
-		echo "Config copied to /etc/xboard-node/config.yml - please edit it"; \
+	sudo cp rua-edge /usr/local/bin/
+	sudo cp rua-edge-ctl /usr/local/bin/
+	sudo mkdir -p /etc/rua-edge
+	@if [ ! -f /etc/rua-edge/config.yml ]; then \
+		sudo cp config.yml.example /etc/rua-edge/config.yml; \
+		echo "Config copied to /etc/rua-edge/config.yml - please edit it"; \
 	fi

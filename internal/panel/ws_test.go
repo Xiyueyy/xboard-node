@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Xiyueyy/rua-edge/internal/brand"
 	"github.com/gorilla/websocket"
 )
 
@@ -21,6 +22,10 @@ func fakeWSServer(t *testing.T, events []wsMessage) *httptest.Server {
 	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("User-Agent"); got != brand.UserAgent {
+			t.Errorf("User-Agent: got %q, want %q", got, brand.UserAgent)
+		}
+
 		// Validate query params
 		q := r.URL.Query()
 		if q.Get("token") == "" || q.Get("node_id") == "" {

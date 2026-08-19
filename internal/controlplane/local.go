@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cedar2025/xboard-node/internal/config"
-	"github.com/cedar2025/xboard-node/internal/model"
+	"github.com/Xiyueyy/rua-edge/internal/config"
+	"github.com/Xiyueyy/rua-edge/internal/model"
 )
 
 type LocalControlPlane struct {

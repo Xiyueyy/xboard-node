@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cedar2025/xboard-node/internal/config"
-	"github.com/cedar2025/xboard-node/internal/model"
+	"github.com/Xiyueyy/rua-edge/internal/config"
+	"github.com/Xiyueyy/rua-edge/internal/model"
 	"github.com/sagernet/sing-box/adapter"
 	singM "github.com/sagernet/sing/common/metadata"
 	"golang.org/x/time/rate"

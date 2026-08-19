@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cedar2025/xboard-node/internal/config"
-	"github.com/cedar2025/xboard-node/internal/model"
-	"github.com/cedar2025/xboard-node/internal/nlog"
-	"github.com/cedar2025/xboard-node/internal/panel"
+	"github.com/Xiyueyy/rua-edge/internal/config"
+	"github.com/Xiyueyy/rua-edge/internal/model"
+	"github.com/Xiyueyy/rua-edge/internal/nlog"
+	"github.com/Xiyueyy/rua-edge/internal/panel"
 )
 
 // MachinePanelControlPlane implements ControlPlane for a single node running

@@ -1,6 +1,10 @@
 # Binaries
 /xboard-node
 /xboard-node-linux-*
+/rua-edge
+/rua-edge-ctl
+/rua-edge-linux-*
+/rua-edge-ctl-linux-*
 *.exe
 
 # Config files (may contain secrets)

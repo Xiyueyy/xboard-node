@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"strconv"
 	"sync/atomic"
 	"time"
 
-	"github.com/cedar2025/xboard-node/internal/nlog"
+	"github.com/Xiyueyy/rua-edge/internal/brand"
+	"github.com/Xiyueyy/rua-edge/internal/nlog"
 	"github.com/gorilla/websocket"
 )
 
@@ -215,7 +217,9 @@ func (w *WSClient) connect(ctx context.Context) error {
 	dialer := websocket.Dialer{
 		HandshakeTimeout: w.cfg.HandshakeTimeout,
 	}
-	conn, _, err := dialer.DialContext(ctx, u.String(), nil)
+	headers := http.Header{}
+	headers.Set("User-Agent", brand.UserAgent)
+	conn, _, err := dialer.DialContext(ctx, u.String(), headers)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
 	}

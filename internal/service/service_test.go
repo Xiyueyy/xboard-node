@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cedar2025/xboard-node/internal/cert"
-	"github.com/cedar2025/xboard-node/internal/config"
-	"github.com/cedar2025/xboard-node/internal/kernel"
-	"github.com/cedar2025/xboard-node/internal/kernel/singbox"
-	"github.com/cedar2025/xboard-node/internal/limiter"
-	"github.com/cedar2025/xboard-node/internal/model"
+	"github.com/Xiyueyy/rua-edge/internal/cert"
+	"github.com/Xiyueyy/rua-edge/internal/config"
+	"github.com/Xiyueyy/rua-edge/internal/kernel"
+	"github.com/Xiyueyy/rua-edge/internal/kernel/singbox"
+	"github.com/Xiyueyy/rua-edge/internal/limiter"
+	"github.com/Xiyueyy/rua-edge/internal/model"
 	"golang.org/x/time/rate"
 )
 

@@ -14,8 +14,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cedar2025/xboard-node/internal/config"
-	"github.com/cedar2025/xboard-node/internal/nlog"
+	"github.com/Xiyueyy/rua-edge/internal/brand"
+	"github.com/Xiyueyy/rua-edge/internal/config"
+	"github.com/Xiyueyy/rua-edge/internal/nlog"
 	"github.com/go-viper/mapstructure/v2"
 )
 
@@ -25,7 +26,7 @@ var (
 	onlineMapPool  = sync.Pool{New: func() interface{} { return make(map[string]int) }}
 )
 
-// Client communicates with the Xboard panel API.
+// Client communicates with the compatible panel API.
 // When machineID > 0 the client uses machine-level authentication
 // (machine_id + token) instead of the legacy (token + node_type) scheme.
 type Client struct {
@@ -435,6 +436,7 @@ func (c *Client) doRequest(method, path string, body []byte, ifNoneMatch string)
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", brand.UserAgent)
 	if ifNoneMatch != "" {
 		req.Header.Set("If-None-Match", ifNoneMatch)
 	}

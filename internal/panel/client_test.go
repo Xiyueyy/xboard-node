@@ -6,7 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/cedar2025/xboard-node/internal/config"
+	"github.com/Xiyueyy/rua-edge/internal/brand"
+	"github.com/Xiyueyy/rua-edge/internal/config"
 )
 
 func newTestServer(handler http.HandlerFunc) (*httptest.Server, *Client) {
@@ -21,6 +22,9 @@ func newTestServer(handler http.HandlerFunc) (*httptest.Server, *Client) {
 
 func TestGetConfig_Success(t *testing.T) {
 	ts, client := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("User-Agent"); got != brand.UserAgent {
+			t.Errorf("User-Agent: got %q, want %q", got, brand.UserAgent)
+		}
 		if r.URL.Path != "/api/v1/server/UniProxy/config" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}

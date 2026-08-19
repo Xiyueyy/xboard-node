@@ -1,75 +1,47 @@
-# xboard-node
+# RUA Edge
 
-`xbctl upgrade` downloads release artifacts from this fork by default:
-`https://github.com/Xiyueyy/xboard-node/releases`. For a private mirror or
-temporary recovery source, set `XBOARD_NODE_DOWNLOAD_BASE` to another release
-base URL before running the upgrade command.
+RUA Edge 是 Ruaboard 的边缘网络运行时。它在边缘服务器上同步配置、运行网络内核并回传健康与用量信息；对外进程、服务、CLI、日志和安装目录统一使用中性的 RUA Edge 品牌。
 
-Node backend for [Xboard](https://github.com/cedar2025/Xboard). Supports `sing-box` / `xray-core` dual kernels.
+## 运行标识
 
-> **Disclaimer**: This project is for educational and learning purposes only.
+- 主程序：`rua-edge`
+- 控制工具：`rua-edge-ctl`
+- systemd：`rua-edge.service`
+- 配置目录：`/etc/rua-edge`
+- User-Agent：`RUA-Edge`
 
-## Features
+## 安装
 
-- Protocols: V2Ray family, Trojan, Shadowsocks, Hysteria2, TUIC, AnyTLS
-- Sync: WebSocket push + REST polling dual channel
-- User controls: speed limit, device limit, alive-IP tracking, hot update
-- Deploy modes: node mode, machine mode, standalone mode
-- Multi-instance: single process binding multiple panels / nodes
-
-## Install
-
-### Docker
+推荐从 Ruaboard 管理端的节点详情生成一次性安装命令。通用示例：
 
 ```bash
-docker run -d --restart=always --network=host \
-  -e apiHost=https://panel.com -e apiKey=TOKEN -e nodeID=1 \
-  ghcr.io/cedar2025/xboard-node:latest
+curl -fsSL https://panel.example.com/api/public/rua-edge/install-script | \
+  bash -s -- --mode machine --panel https://panel.example.com \
+  --token TOKEN --machine-id 1 --kernel singbox --health-port 0 --yes
 ```
 
-### Docker Compose
+旧版 `/etc/xboard-node`、`xboard-node.service` 和 `xbctl` 安装会在执行新版安装器时自动迁移；面板协议仍保持兼容，不需要重建节点或入站。
+
+## 常用命令
 
 ```bash
-git clone -b compose --depth 1 https://github.com/cedar2025/xboard-node.git
-cd xboard-node
-vim config/config.yml   # set panel.url / token / node_id
-docker compose up -d
+rua-edge-ctl status
+rua-edge-ctl list
+rua-edge-ctl service logs
+rua-edge-ctl service restart
+rua-edge-ctl upgrade
 ```
 
-### Installer (Linux systemd)
+## 构建
 
 ```bash
-# Node mode
-curl -fsSL https://raw.githubusercontent.com/cedar2025/xboard-node/dev/install.sh | \
-  sudo bash -s -- --mode node --panel https://panel.example.com --token TOKEN --node-id 1
-
-# Machine mode
-curl -fsSL https://raw.githubusercontent.com/cedar2025/xboard-node/dev/install.sh | \
-  sudo bash -s -- --mode machine --panel https://panel.example.com --token TOKEN --machine-id 1
-
-## xbctl
-
-Run `xbctl` after installation for help. Common commands:
-
-```bash
-xbctl list                          # list all instances
-xbctl status                        # running status
-xbctl bind add-node --panel URL --token TOKEN --node-id 1
-xbctl bind add-machine --panel URL --token TOKEN --machine-id 1
-xbctl bind remove-node --panel URL --node-id 1
-xbctl service restart
+make test
+make build-all
 ```
 
-## Configuration
+Release 产物：
 
-Legacy single-panel config is fully compatible. Appending bindings auto-migrates to `instances` format. See `config.yml.example`.
-
-## Extensions
-
-- Custom routes: [docs-custom-routes.md](docs-custom-routes.md)
-- Custom outbounds: [docs-custom-outbounds.md](docs-custom-outbounds.md)
-- DNS providers (ACME DNS-01): [docs-dns-providers.md](docs-dns-providers.md)
-
-## License
-
-MPL-2.0.
+- `rua-edge-linux-amd64`
+- `rua-edge-linux-arm64`
+- `rua-edge-ctl-linux-amd64`
+- `rua-edge-ctl-linux-arm64`

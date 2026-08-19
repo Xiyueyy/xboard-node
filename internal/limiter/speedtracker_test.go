@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cedar2025/xboard-node/internal/model"
+	"github.com/Xiyueyy/rua-edge/internal/model"
 )
 
 func TestSpeedTracker_UpdateBuckets(t *testing.T) {
